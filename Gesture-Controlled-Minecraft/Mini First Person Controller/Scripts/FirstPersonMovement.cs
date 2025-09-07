@@ -1,0 +1,164 @@
+﻿using System.Collections.Generic;
+using UnityEngine;
+using System.IO;
+using System.Collections;
+
+public class FirstPersonMovement : MonoBehaviour
+{
+    public float speed = 5;
+
+    [Header("Running")]
+    public bool canRun = true;
+    private int currentCommandIndex = 0;
+    private string[] commands;
+    public bool IsRunning { get; private set; }
+    public float runSpeed = 9;
+    public KeyCode runningKey = KeyCode.LeftShift;
+    private string path = ".\\Assets\\Mini First Person Controller\\Scripts\\values.txt";
+    private float timeSinceLastCommand = 0f;
+    private float commandInterval = 1f; // 1 second interval
+
+    Rigidbody rigidbody;
+    /// <summary> Functions to override movement speed. Will use the last added override. </summary>
+    public List<System.Func<float>> speedOverrides = new List<System.Func<float>>();
+
+
+
+    void Awake()
+    {
+
+        if (File.Exists(path))
+        {
+            string inputValue = File.ReadAllText(path);
+            commands = SeparateWords(inputValue);
+            
+        }
+
+            // Get the rigidbody on this.
+            rigidbody = GetComponent<Rigidbody>();
+    }
+
+    
+
+    void ExecuteCommand(string command)
+    {
+        // Update IsRunning from input
+        IsRunning = Input.GetKey(runningKey);
+
+        // Get targetMovingSpeed
+        float targetMovingSpeed = IsRunning ? runSpeed : speed;
+
+
+
+        // Get targetVelocity from input
+        Vector2 targetVelocity = Vector2.zero;
+
+        if (command == "Frente")
+        {
+            
+            targetVelocity = new Vector2(0, 2f * targetMovingSpeed);
+            Debug.Log("Frente");
+        }
+        else if (command == "Direita")
+        {
+            targetVelocity = new Vector2(2f * targetMovingSpeed, 0);
+            Debug.Log("Direita");
+        }
+        else if (command == "Esquerda")
+        {
+            targetVelocity = new Vector2(-2f * targetMovingSpeed, 0);
+            
+            Debug.Log("Esquerda");
+        }
+        else if (command == "Trás")
+        {
+            targetVelocity = new Vector2(0, -2f * targetMovingSpeed);
+            Debug.Log("Trás");
+        }
+
+        // Apply movement
+        rigidbody.velocity = transform.rotation * new Vector3(targetVelocity.x, rigidbody.velocity.y, targetVelocity.y);
+        
+    }
+
+
+
+    void FixedUpdate()
+    {
+        
+        if (File.Exists(path))
+        {
+            if (commands != null && commands.Length > 0)
+            {
+                timeSinceLastCommand += Time.fixedDeltaTime;
+
+                if (timeSinceLastCommand >= commandInterval)
+                {
+                    if (currentCommandIndex < commands.Length)
+                    {
+                        //evita que o boneco fica a girar infinitamente
+                        rigidbody.velocity = Vector3.zero;
+                        transform.rotation = Quaternion.identity;
+
+                        ExecuteCommand(commands[currentCommandIndex]);
+                        currentCommandIndex++;
+                        timeSinceLastCommand = 0f;
+                    }
+                }
+            }
+        }
+        else
+        {
+
+
+            // Update IsRunning from input.
+            IsRunning = canRun && Input.GetKey(runningKey);
+
+            // Get targetMovingSpeed.
+            float targetMovingSpeed = IsRunning ? runSpeed : speed;
+            if (speedOverrides.Count > 0)
+            {
+                targetMovingSpeed = speedOverrides[speedOverrides.Count - 1]();
+            }
+
+            
+
+            // Get targetVelocity from input.
+            Vector2 targetVelocity = new Vector2(Input.GetAxis("Horizontal") * targetMovingSpeed, Input.GetAxis("Vertical") * targetMovingSpeed);
+
+
+            
+            // Apply movement.
+            rigidbody.velocity = transform.rotation * new Vector3(targetVelocity.x, rigidbody.velocity.y, targetVelocity.y);
+        }
+    }
+
+    string[] SeparateWords(string content)
+    {
+        
+        if (content.EndsWith("."))
+        {
+            content = content.Substring(0, content.Length - 1);
+        }
+
+        
+        string[] words = content.Split(',');
+
+        return words;
+    }
+
+    public void TriggerMoveForward()
+    {
+        // This uses your existing speed logic
+        float targetMovingSpeed = IsRunning ? runSpeed : speed;
+        Vector2 targetVelocity = new Vector2(0, 1 * targetMovingSpeed);
+
+        // Apply movement
+        rigidbody.velocity = transform.rotation * new Vector3(targetVelocity.x, rigidbody.velocity.y, targetVelocity.y);
+    }
+
+    public void TriggerStop()
+    {
+        rigidbody.velocity = new Vector3(0, rigidbody.velocity.y, 0);
+    }
+}

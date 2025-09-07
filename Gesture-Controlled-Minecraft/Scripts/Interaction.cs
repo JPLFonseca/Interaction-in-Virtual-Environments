@@ -1,0 +1,269 @@
+using System;
+using System.Collections;
+using System.Collections.Generic;
+using System.IO;
+using UnityEngine;
+
+public class Interaction : MonoBehaviour
+{
+    public Camera cam;
+
+    public AudioSource source;
+    public AudioClip clip1;
+    public AudioClip clip2;
+
+    private int currentCommandIndex = 0;
+    private string[] commands;
+    private string path = ".\\Assets\\Mini First Person Controller\\Scripts\\values.txt";
+    private float timeSinceLastCommand = 0f;
+    private float commandInterval = 1f; // 1 second interval
+    Boolean interaction = false;
+
+    enum InteractionType { DESTROY, BUILD };
+    InteractionType interactionType;
+    Block.BlockType selectedBlockType = Block.BlockType.GRASS;
+    public Transform selection;
+
+    
+
+    void BlockInteraction()
+    {
+        // --- This is the new, corrected input handling ---
+        // Handle file input first, if it exists
+        if (File.Exists(path))
+        {
+            if (commands != null && commands.Length > 0)
+            {
+                timeSinceLastCommand += Time.fixedDeltaTime;
+                if (timeSinceLastCommand >= commandInterval)
+                {
+                    if (currentCommandIndex < commands.Length)
+                    {
+                        ExecuteCommand(commands[currentCommandIndex]);
+                        currentCommandIndex++;
+                        timeSinceLastCommand = 0f;
+                    }
+                }
+            }
+        }
+        // Handle mouse input if no file exists
+        else
+        {
+            // Check for mouse input without overwriting gesture input
+            if (Input.GetMouseButtonDown(0))
+            {
+                interaction = true;
+                interactionType = InteractionType.DESTROY;
+            }
+            else if (Input.GetMouseButtonDown(1))
+            {
+                interaction = true;
+                interactionType = InteractionType.BUILD;
+            }
+        }
+
+        // --- The rest of the function now works for BOTH gestures and mouse clicks ---
+        if (interaction)
+        {
+            Debug.Log("Recebeu uma interação e vai " + interactionType);
+            RaycastHit hit;
+            if (Physics.Raycast(cam.transform.position, cam.transform.forward, out hit, 10))
+            {
+                // All of your existing raycasting, block finding, and redraw logic
+                // remains exactly the same here.
+
+                string chunkName = hit.collider.gameObject.name;
+                float chunkX = hit.collider.gameObject.transform.position.x;
+                float chunkY = hit.collider.gameObject.transform.position.y;
+                float chunkZ = hit.collider.gameObject.transform.position.z;
+
+                Vector3 hitBlock;
+                if (interactionType == InteractionType.DESTROY)
+                {
+                    hitBlock = hit.point - hit.normal / 2f;
+                }
+                else
+                {
+                    hitBlock = hit.point + hit.normal / 2f;
+                }
+
+                // (The rest of your block coordinate and redraw logic...)
+                int blockX = (int)(Mathf.Round(hitBlock.x) - chunkX);
+                if (blockX == 16)
+                {
+                    blockX = 0;
+                    chunkX += 16;
+                }
+                else if (blockX == -1)
+                {
+                    blockX = 15; // Corrected from 0 to 15
+                    chunkX -= 16;
+                }
+
+                int blockY = (int)(Mathf.Round(hitBlock.y) - chunkY);
+                if (blockY == 16)
+                {
+                    blockY = 0;
+                    chunkY += 16;
+                }
+                else if (blockY == -1)
+                {
+                    blockY = 15; // Corrected from 0 to 15
+                    chunkY -= 16;
+                }
+
+                int blockZ = (int)(Mathf.Round(hitBlock.z) - chunkZ);
+                if (blockZ == 16)
+                {
+                    blockZ = 0;
+                    chunkZ += 16;
+                }
+                else if (blockZ == -1)
+                {
+                    blockZ = 15; // Corrected from 0 to 15
+                    chunkZ -= 16;
+                }
+
+                chunkName = World.CreateChunkName(new Vector3(chunkX, chunkY, chunkZ));
+
+                Chunk c;
+                if (World.chunkDict.TryGetValue(chunkName, out c)) // Simplified the if statement
+                {
+                    if (c.chunkdata[blockX, blockY, blockZ].hitBlock())
+                    {
+                        if (interactionType == InteractionType.DESTROY)
+                        {
+                            source.PlayOneShot(clip1);
+                            c.chunkdata[blockX, blockY, blockZ].SetType(Block.BlockType.AIR);
+                        }
+                        else
+                        {
+                            source.PlayOneShot(clip2);
+                            c.chunkdata[blockX, blockY, blockZ].SetType(selectedBlockType);
+                        }
+                    }
+
+                    List<string> updates = new List<string>();
+                    updates.Add(chunkName);
+
+                    if (blockX == 0)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX - World.chunkSize, chunkY, chunkZ)));
+                    if (blockX == World.chunkSize - 1)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX + World.chunkSize, chunkY, chunkZ)));
+                    if (blockY == 0)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX, chunkY - World.chunkSize, chunkZ)));
+                    if (blockY == World.chunkSize - 1)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX, chunkY + World.chunkSize, chunkZ)));
+                    if (blockZ == 0)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX, chunkY, chunkZ - World.chunkSize)));
+                    if (blockZ == World.chunkSize - 1)
+                        updates.Add(World.CreateChunkName(new Vector3(chunkX, chunkY, chunkZ + World.chunkSize)));
+
+                    foreach (string cname in updates)
+                    {
+                        if (World.chunkDict.TryGetValue(cname, out c))
+                        {
+                            c.Redraw();
+                        }
+                    }
+                }
+            }
+            // Reset the interaction flag at the end
+            interaction = false;
+        }
+    }
+
+    void HotbarInteraction()
+    {
+        bool interaction = Input.GetKeyDown(KeyCode.Alpha1) || Input.GetKeyDown(KeyCode.Alpha2) || Input.GetKeyDown(KeyCode.Alpha3) || Input.GetKeyDown(KeyCode.Alpha4);
+
+        if (interaction)
+        {
+            if (Input.GetKeyDown(KeyCode.Alpha1))
+            {
+                selectedBlockType = Block.BlockType.GRASS;
+                selection.localPosition = new Vector3(-59, -150, 1);
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha2))
+            {
+                selectedBlockType = Block.BlockType.DIRT;
+                selection.localPosition = new Vector3(-19, -150, 1);
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha3))
+            {
+                selectedBlockType = Block.BlockType.STONE;
+                selection.localPosition = new Vector3(21, -150, 1);
+            }
+            else if (Input.GetKeyDown(KeyCode.Alpha4))
+            {
+                selectedBlockType = Block.BlockType.GRAVEL;
+                selection.localPosition = new Vector3(61, -150, 1);
+            }
+        }
+    }
+
+    // Update is called once per frame
+    void Update()
+    {
+        HotbarInteraction();
+        BlockInteraction();
+    }
+
+    void Start()
+    {
+        if (File.Exists(path))
+        {
+            string inputValue = File.ReadAllText(path);
+            commands = SeparateWords(inputValue);
+
+        }
+        else
+        {
+            Debug.Log("File not found!");
+        }
+    }
+
+    string[] SeparateWords(string content)
+    {
+        // Remove the ending dot
+        if (content.EndsWith("."))
+        {
+            content = content.Substring(0, content.Length - 1);
+        }
+
+        // Split the content by comma
+        string[] words = content.Split(',');
+
+        return words;
+    }
+
+    void ExecuteCommand(string command)
+    {
+        if( command == "Bater")
+        {
+            interaction = true;
+            interactionType = InteractionType.DESTROY;
+        }else if(command == "Colocar")
+        {
+            interaction = true;
+            interactionType = InteractionType.BUILD;
+        }
+        else
+        {
+            interaction = false;
+        }
+    }
+
+    public void TriggerDestroy()
+    {
+        interaction = true;
+        interactionType = InteractionType.DESTROY;
+    }
+
+    public void TriggerBuild()
+    {
+        interaction = true;
+        interactionType = InteractionType.BUILD;
+    }
+
+}

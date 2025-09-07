@@ -8,4 +8,4 @@
 
 ### Repository 2: Gesture-Controlled Game
 
-**Description:** A sandbox-style game where interaction is done entirely through gestures. The project uses a computer vision architecture with **Python** and **MediaPipe** to detect 21 key points on the hand in 3D, sending the data to **Unity** via a **UDP** network. The game features a procedurally generated world with caves, and the gesture system allows for actions such as moving, looking, destroying, and placing blocks.
+**Description:** A simplified version of the Minecraft game where interaction is done entirely through gestures. The project uses a computer vision architecture with **Python**, **MediaPipe** and **Unity** to detect 21 key points on the hand in 3D, sending the data to **Unity** via a **UDP** network. The game features a procedurally generated world with caves, and the gesture system allows for actions such as moving, looking, destroying, and placing blocks.
